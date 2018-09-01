@@ -9,7 +9,15 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <string.h>
 using namespace std;
+
+
+/* **** DEFINES **** */
+#	define MAX_BUFFER_SIZE 500
+
+/* **** GLOBAL VALUES **** */
+string cli_prompt = "==>";
 
 /* **** FUNCTIONS **** */
 void getStats(){
@@ -34,40 +42,114 @@ void getStats(){
 	cout << "Major page faults: " << usage.ru_majflt << "\n";
 	cout << "Minor page faults: " << usage.ru_minflt << "\n";
 	cout << "Max resident set size used: " << usage.ru_maxrss << "kB\n";
+	cout << "**********************************\n";
 }
+
+void dispPrompt(){
+	cout << cli_prompt;
+}
+
+void changePrompt(string new_cli_prompt){
+	cli_prompt = new_cli_prompt;
+}
+
+/*char** parseString(char* string){
+	//parse c string into different tokens
+	char* tokArray[MAX_BUFFER_SIZE];
+	char* tok;
+	int i;
+	tok = strtok(string, " "); //grab first element
+
+	for (i = 0; (i < MAX_BUFFER_SIZE) || (tok != NULL); i++){
+		tokArray[i] = tok;
+		tok = strtok(NULL, " ");
+	}
+
+	//null terminate the token array
+	tokArray[i] = tok;
+
+	return tokArray;
+}*/
 
 /* **** MAIN **** */
 int main(int argc, char* argv[]){
      /* argc -- number of arguments */
      /* argv -- an array of strings */
-	char* arg_buff[argc]; //buffer to store input args
+	char* cli_buff[argc]; //buffer to store cli args
+	char* token;
+	char* shell_buff[MAX_BUFFER_SIZE];
+	char* command;
 	int i; //counter used in looping through input args
+	int j; //counter used during string pasrsing
 	int pid;
-	int state; // 0 = no work to do -> shell prompt; 1 = work to do
+	int state = 0; // 0 = no work to do -> shell prompt; 1 = work to do
 	int num_arg;
+	string cli_input;
 
 	if (argc > 1)
 		state = 1;
 
 	while(1){
-		if (state == 1){
+		//program loop
+		if (state == 0){
+			//begin shell and ask for input
+			dispPrompt();
+			getline(cin, cli_input);
+
+			char* buffer = (char*) cli_input.c_str();
+			token = strtok(buffer, " ");
+			
+			for (j = 0; token != NULL; j++){
+				//save token to buffer
+				shell_buff[j] = token;
+				token = strtok(NULL, " ");
+			}
+			shell_buff[j] = NULL;
+
+			//perform command execution in a child process (do not replace the parent)
+			if ( (pid = fork()) < 0){
+				//if a problem occured when attempting to fork
+				cerr << "Fork error\n";
+				exit(1);
+			}
+			else if (pid == 0){
+				//child process, run command
+				//note that argv[1] is the desired command to be run from the cli
+				execvp(shell_buff[0], shell_buff);
+				perror("execv");
+			}
+			else{
+				//parent process, do nothing.
+			}
+
+			state = 0; //prompt for input
+			wait(0);
+			getStats();
+
+		} else{
 			//if arguments beyond the application call were made
 			//then do work on them
+			//this block should only occur on first execution of the application
 
 			//print the inputted cli args
-			for (int j = 0; i < argc; i++){
-				printf("argv[%d]: %s\n", i, argv[i]);
+			for (int h = 0; h < argc; h++){
+				printf("argv[%d]: %s\n", h, argv[h]);
 			}
 
 			//store the args in a null terminated buffer
 			//note that argc - 1 will be the last element of the array of input args
 			for (i = 0; i < (argc - 1); i++){
-				//here we assign arg_buff[i] with argv[i+1] to capture every element
+				//here we assign cli_buff[i] with argv[i+1] to capture every element
 				//after the initial program call of ./main
-				arg_buff[i] = argv[i+1];
+				cli_buff[i] = argv[i+1];
 			}
 			//null terminate the buffer
-			arg_buff[i] = NULL;
+			cli_buff[i] = NULL;
+
+			//print the inputted cli args
+			for (int h = 0; h < i; h++){
+				printf("cli_buff[%d]: %s\n", h, cli_buff[h]);
+			}
 
 			//perform command execution in a child process (do not replace the parent)
 			if ( (pid = fork()) < 0){
@@ -79,26 +161,18 @@ int main(int argc, char* argv[]){
 				//child process, run command
 				cout << "Running execv...\n";
 				//note that argv[1] is the desired command to be run from the cli
-				execvp(argv[1], arg_buff);
+				execvp(cli_buff[0], cli_buff);
 				perror("execv");
 			}
 			else{
-				//process must be the parent... do nothing for now.
+				//parent process, do nothing.
 			}
 
+			state = 0; //switch to shell
 			wait(0);
-			//sleep(5);
 			getStats();
-			printf("Done...\n");
 		}
-		else{
-			//if no arguments besides the call were made
-			//begin shell and ask for input
-			cout << "==> ";
-			cin >> num_arg;
-			cout << "You entered: " << num_arg << "\n";
-		}
-	}
+	} //end of while loop
 return 1; //should no longer be reached
 }
 
