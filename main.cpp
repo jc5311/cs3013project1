@@ -89,15 +89,18 @@ int main(int argc, char* argv[]){
 			}
 			shell_buff[j] = NULL;
 
-			//check for shell specific commands
-			if (strstr(shell_buff[0], "exit") != NULL){
+			//check for shell specific commands or situations
+			if (j == 0){
+				continue;
+			}else if (strstr(shell_buff[0], "exit") != NULL){
+				//if user enters exit, then exit the program
 				exit(0);
 			}else if (strstr(shell_buff[0], "cd") != NULL){
+				//change directory
 				chdir(shell_buff[1]);
 				perror("chdir");
 				continue;
 			}
-
 
 			//perform command execution in a child process (do not replace the parent)
 			if ( (pid = fork()) < 0){
