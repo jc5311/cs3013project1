@@ -100,6 +100,11 @@ int main(int argc, char* argv[]){
 				chdir(shell_buff[1]);
 				perror("chdir");
 				continue;
+			}else if ( (strstr(shell_buff[0], "set") != NULL)
+						&& (strstr(shell_buff[1], "prompt") != NULL)
+						&& (strstr(shell_buff[2], "=") != NULL) ){
+				changePrompt(shell_buff[3]);
+				continue;
 			}
 
 			//perform command execution in a child process (do not replace the parent)
