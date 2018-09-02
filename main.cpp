@@ -24,7 +24,7 @@ void getStats(){
 	//get system stats and output them
 	struct rusage usage;
 
-	if (getrusage(RUSAGE_SELF, &usage ) < 0){
+	if (getrusage(RUSAGE_CHILDREN, &usage ) < 0){
 		cerr << "getrusage error";
 	}
 
@@ -53,24 +53,6 @@ void changePrompt(string new_cli_prompt){
 	cli_prompt = new_cli_prompt;
 }
 
-/*char** parseString(char* string){
-	//parse c string into different tokens
-	char* tokArray[MAX_BUFFER_SIZE];
-	char* tok;
-	int i;
-	tok = strtok(string, " "); //grab first element
-
-	for (i = 0; (i < MAX_BUFFER_SIZE) || (tok != NULL); i++){
-		tokArray[i] = tok;
-		tok = strtok(NULL, " ");
-	}
-
-	//null terminate the token array
-	tokArray[i] = tok;
-
-	return tokArray;
-}*/
-
 /* **** MAIN **** */
 int main(int argc, char* argv[]){
      /* argc -- number of arguments */
@@ -86,8 +68,9 @@ int main(int argc, char* argv[]){
 	int num_arg;
 	string cli_input;
 
-	if (argc > 1)
+	if (argc > 1){
 		state = 1;
+	}
 
 	while(1){
 		//program loop
@@ -106,6 +89,16 @@ int main(int argc, char* argv[]){
 			}
 			shell_buff[j] = NULL;
 
+			//check for shell specific commands
+			if (strstr(shell_buff[0], "exit") != NULL){
+				exit(0);
+			}else if (strstr(shell_buff[0], "cd") != NULL){
+				chdir(shell_buff[1]);
+				perror("chdir");
+				continue;
+			}
+
+
 			//perform command execution in a child process (do not replace the parent)
 			if ( (pid = fork()) < 0){
 				//if a problem occured when attempting to fork
@@ -117,13 +110,12 @@ int main(int argc, char* argv[]){
 				//note that argv[1] is the desired command to be run from the cli
 				execvp(shell_buff[0], shell_buff);
 				perror("execv");
+				exit(0);
 			}
 			else{
 				//parent process, do nothing.
+				wait(0);
 			}
-
-			state = 0; //prompt for input
-			wait(0);
 			getStats();
 
 		} else{
@@ -163,6 +155,7 @@ int main(int argc, char* argv[]){
 				//note that argv[1] is the desired command to be run from the cli
 				execvp(cli_buff[0], cli_buff);
 				perror("execv");
+				exit(0);
 			}
 			else{
 				//parent process, do nothing.
