@@ -18,16 +18,26 @@ using namespace std;
 
 /* **** GLOBAL VALUES **** */
 string cli_prompt = "==>";
+struct timeval time_before_proc;
+struct timeval time_after_proc;
 
 /* **** FUNCTIONS **** */
 void getStats(){
 	//get system stats and output them
 	struct rusage usage;
 
+	//get rusage data
 	if (getrusage(RUSAGE_CHILDREN, &usage ) < 0){
-		cerr << "getrusage error";
+		perror("getrusage error");
 	}
 
+	//time needed for wall clock globally defined
+	//at the point this function is called they should be already set for use.
+	//note the two time stamps below are in ms
+	long time_start = (time_before_proc.tv_sec * 1000) + \
+						(time_before_proc.tv_usec / 1000);
+	long time_end = (time_after_proc.tv_sec * 1000) + \
+						(time_after_proc.tv_usec / 1000);
 	//print data
 	cout << "*** System resource statistics ***\n";
 	cout << "User CPU time: " << ((usage.ru_utime.tv_sec * 1000) +
@@ -36,7 +46,7 @@ void getStats(){
 	cout << "System CPU time: " << ((usage.ru_stime.tv_sec * 1000) +
 		(usage.ru_stime.tv_usec / 1000))
 	<< "ms\n";
-	cout << "Wall clock still needed!!!\n";
+	cout << "Wall clock time: " << (time_end - time_start) << "ms\n";
 	cout << "Involuntary preemptions: " << usage.ru_nivcsw << "\n";
 	cout << "Voluntary preemptions: " << usage.ru_nvcsw << "\n";
 	cout << "Major page faults: " << usage.ru_majflt << "\n";
@@ -97,8 +107,9 @@ int main(int argc, char* argv[]){
 				exit(0);
 			}else if (strstr(shell_buff[0], "cd") != NULL){
 				//change directory
-				chdir(shell_buff[1]);
-				perror("chdir");
+				if (chdir(shell_buff[1]) < 0){
+				perror("chdir");	
+				}
 				continue;
 			}else if ( (strstr(shell_buff[0], "set") != NULL)
 						&& (strstr(shell_buff[1], "prompt") != NULL)
@@ -107,22 +118,33 @@ int main(int argc, char* argv[]){
 				continue;
 			}
 
+			//grab wall clock before forking, call this "at execution" of child proc
+			if ( gettimeofday(&time_before_proc, NULL) < 0){
+				perror("gettimeofday error");
+				exit(1);
+			}
+
 			//perform command execution in a child process (do not replace the parent)
 			if ( (pid = fork()) < 0){
 				//if a problem occured when attempting to fork
-				cerr << "Fork error\n";
+				perror("Fork error\n");
 				exit(1);
 			}
 			else if (pid == 0){
 				//child process, run command
 				//note that argv[1] is the desired command to be run from the cli
 				execvp(shell_buff[0], shell_buff);
-				perror("execv");
-				exit(0);
+				perror("execvp");
+				exit(1);
 			}
 			else{
 				//parent process, do nothing.
 				wait(0);
+			}
+			//get time again
+			if (gettimeofday(&time_after_proc, NULL) < 0){
+				perror("gettimeofday");
+				exit(1);
 			}
 			getStats();
 
@@ -130,11 +152,6 @@ int main(int argc, char* argv[]){
 			//if arguments beyond the application call were made
 			//then do work on them
 			//this block should only occur on first execution of the application
-
-			//print the inputted cli args
-			for (int h = 0; h < argc; h++){
-				printf("argv[%d]: %s\n", h, argv[h]);
-			}
 
 			//store the args in a null terminated buffer
 			//note that argc - 1 will be the last element of the array of input args
@@ -146,15 +163,16 @@ int main(int argc, char* argv[]){
 			//null terminate the buffer
 			cli_buff[i] = NULL;
 
-			//print the inputted cli args
-			for (int h = 0; h < i; h++){
-				printf("cli_buff[%d]: %s\n", h, cli_buff[h]);
+			//grab wall clock before forking, call this "at execution" of child proc
+			if ( gettimeofday(&time_before_proc, NULL) < 0){
+				perror("gettimeofday error");
+				exit(1);
 			}
 
 			//perform command execution in a child process (do not replace the parent)
 			if ( (pid = fork()) < 0){
 				//if a problem occured when attempting to fork
-				cerr << "Fork error\n";
+				perror("Fork error\n");
 				exit(1);
 			}
 			else if (pid == 0){
@@ -162,7 +180,7 @@ int main(int argc, char* argv[]){
 				cout << "Running execv...\n";
 				//note that argv[1] is the desired command to be run from the cli
 				execvp(cli_buff[0], cli_buff);
-				perror("execv");
+				perror("execvp");
 				exit(0);
 			}
 			else{
@@ -171,6 +189,11 @@ int main(int argc, char* argv[]){
 
 			state = 0; //switch to shell
 			wait(0);
+			//get time again
+			if (gettimeofday(&time_after_proc, NULL) < 0){
+				perror("gettimeofday");
+				exit(1);
+			}
 			getStats();
 		}
 	} //end of while loop
